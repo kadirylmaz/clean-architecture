@@ -10,6 +10,7 @@ Claude Code'a Clean Architecture şablonunun kurallarını öğreten bir skill p
 | **add-entity** | `/add-entity İsmi ve sahibi olan Project` | Bir domain entity'sini baştan sona ekler: entity, hata kataloğu, domain event'leri, EF konfigürasyonu, DbContext bağlantısı, migration. |
 | **add-tests** | `/add-tests CopyTodoCommand` | Mevcut use case'ler için handler, validator ve integration testlerini tamamlar. |
 | **ca-review** | `/ca-review` | Bekleyen değişiklikleri şablonun kurallarına göre inceler: katman sınırları, hata yönetimi, güvenlik, cache'leme ve test kapsamı. |
+| **new-feature** | `/new-feature` | En güncel `develop`'tan koparılan, `feature-1`, `feature-2`, ... şeklinde otomatik numaralandırılan yeni bir feature branch'i oluşturur. |
 
 Bunları açıkça çağırmak zorunda değilsin — kurulduktan sonra, "bir todo'yu ertelemek için bir endpoint ekle" gibi şeyler söylediğinde Claude Code doğru skill'i otomatik olarak seçer.
 
@@ -26,7 +27,8 @@ your-project/
         ├── add-feature/
         ├── add-entity/
         ├── add-tests/
-        └── ca-review/
+        ├── ca-review/
+        └── new-feature/
 ```
 
 Şablonun hem standart hem de Aspire varyantlarıyla çalışır.
