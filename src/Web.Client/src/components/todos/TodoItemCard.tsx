@@ -1,22 +1,26 @@
 import { useState } from "react";
-import { Calendar, Check, Copy, Pencil, Trash2 } from "lucide-react";
+import { Calendar, Check, Copy, NotebookPen, Pencil, Trash2, User as UserIcon } from "lucide-react";
 import { clsx } from "clsx";
 import type { TodoResponse } from "@/api/types";
 import { formatDueDate, isOverdue } from "@/lib/date";
 import { useTodos } from "@/hooks/useTodos";
 import { PriorityBadge } from "./PriorityBadge";
 import { LabelChips } from "./LabelChips";
+import { CompleteTodoModal } from "./CompleteTodoModal";
 import { Menu } from "@/components/ui/Menu";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 interface TodoItemCardProps {
   todo: TodoResponse;
   onEdit: (todo: TodoResponse) => void;
+  /** Shows a short owner badge — used in the admin "every user's todos" view. */
+  showOwner?: boolean;
 }
 
-export function TodoItemCard({ todo, onEdit }: TodoItemCardProps) {
-  const { completeTodo, deleteTodo, copyTodo } = useTodos();
+export function TodoItemCard({ todo, onEdit, showOwner = false }: TodoItemCardProps) {
+  const { deleteTodo, copyTodo } = useTodos();
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const dueLabel = formatDueDate(todo.dueDate);
   const overdue = isOverdue(todo.dueDate, todo.isCompleted);
@@ -30,7 +34,7 @@ export function TodoItemCard({ todo, onEdit }: TodoItemCardProps) {
         )}
       >
         <button
-          onClick={() => !todo.isCompleted && completeTodo.mutate(todo.id)}
+          onClick={() => !todo.isCompleted && setIsCompleting(true)}
           disabled={todo.isCompleted}
           aria-label={todo.isCompleted ? "Tamamlandı" : "Görevi tamamla"}
           className={clsx(
@@ -84,9 +88,29 @@ export function TodoItemCard({ todo, onEdit }: TodoItemCardProps) {
               </span>
             )}
             <LabelChips labels={todo.labels} />
+            {showOwner && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">
+                <UserIcon className="h-3 w-3" />
+                Kullanıcı: {todo.userId.slice(0, 8)}
+              </span>
+            )}
           </div>
+
+          {todo.isCompleted && todo.completionNotes && (
+            <div className="mt-3 flex items-start gap-2 rounded-xl bg-emerald-50/60 p-3 text-xs text-emerald-800 ring-1 ring-inset ring-emerald-200 dark:bg-emerald-500/5 dark:text-emerald-300 dark:ring-emerald-500/20">
+              <NotebookPen className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <p className="whitespace-pre-wrap">{todo.completionNotes}</p>
+            </div>
+          )}
         </div>
       </div>
+
+      <CompleteTodoModal
+        isOpen={isCompleting}
+        onClose={() => setIsCompleting(false)}
+        todoId={todo.id}
+        todoDescription={todo.description}
+      />
 
       <ConfirmDialog
         isOpen={isConfirmingDelete}

@@ -5,20 +5,23 @@ import { getApiErrorMessage } from "@/api/client";
 import type { CreateTodoRequest, TodoResponse, UpdateTodoRequest } from "@/api/types";
 import { useAuth } from "./useAuth";
 
-const todosKey = (userId: string) => ["todos", userId] as const;
+const todosKey = (scope: string) => ["todos", scope] as const;
 
-export function useTodos() {
+/** Pass viewAll to fetch every user's todos — the API only honors this for admins. */
+export function useTodos(viewAll = false) {
   const { user } = useAuth();
   const userId = user?.id ?? "";
+  const requestUserId = viewAll ? undefined : userId;
+  const scope = viewAll ? "all" : userId;
   const queryClient = useQueryClient();
 
   const query = useQuery({
-    queryKey: todosKey(userId),
-    queryFn: () => todosApi.list(userId),
+    queryKey: todosKey(scope),
+    queryFn: () => todosApi.list(requestUserId),
     enabled: Boolean(userId),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: todosKey(userId) });
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["todos"] });
 
   const createTodo = useMutation({
     mutationFn: (payload: Omit<CreateTodoRequest, "userId">) =>
@@ -41,12 +44,12 @@ export function useTodos() {
   });
 
   const completeTodo = useMutation({
-    mutationFn: (id: string) => todosApi.complete(id),
-    onMutate: async (id: string) => {
-      await queryClient.cancelQueries({ queryKey: todosKey(userId) });
-      const previous = queryClient.getQueryData<TodoResponse[]>(todosKey(userId));
+    mutationFn: ({ id, notes }: { id: string; notes?: string | null }) => todosApi.complete(id, notes ?? null),
+    onMutate: async ({ id }: { id: string; notes?: string | null }) => {
+      await queryClient.cancelQueries({ queryKey: todosKey(scope) });
+      const previous = queryClient.getQueryData<TodoResponse[]>(todosKey(scope));
 
-      queryClient.setQueryData<TodoResponse[]>(todosKey(userId), (current) =>
+      queryClient.setQueryData<TodoResponse[]>(todosKey(scope), (current) =>
         current?.map((todo) =>
           todo.id === id ? { ...todo, isCompleted: true, completedAt: new Date().toISOString() } : todo,
         ),
@@ -54,20 +57,21 @@ export function useTodos() {
 
       return { previous };
     },
-    onError: (error, _id, context) => {
-      queryClient.setQueryData(todosKey(userId), context?.previous);
+    onError: (error, _variables, context) => {
+      queryClient.setQueryData(todosKey(scope), context?.previous);
       toast.error(getApiErrorMessage(error, "Görev tamamlanamadı"));
     },
+    onSuccess: () => toast.success("Görev tamamlandı"),
     onSettled: () => void invalidate(),
   });
 
   const deleteTodo = useMutation({
     mutationFn: (id: string) => todosApi.remove(id),
     onMutate: async (id: string) => {
-      await queryClient.cancelQueries({ queryKey: todosKey(userId) });
-      const previous = queryClient.getQueryData<TodoResponse[]>(todosKey(userId));
+      await queryClient.cancelQueries({ queryKey: todosKey(scope) });
+      const previous = queryClient.getQueryData<TodoResponse[]>(todosKey(scope));
 
-      queryClient.setQueryData<TodoResponse[]>(todosKey(userId), (current) =>
+      queryClient.setQueryData<TodoResponse[]>(todosKey(scope), (current) =>
         current?.filter((todo) => todo.id !== id),
       );
 
@@ -75,7 +79,7 @@ export function useTodos() {
     },
     onSuccess: () => toast.success("Görev silindi"),
     onError: (error, _id, context) => {
-      queryClient.setQueryData(todosKey(userId), context?.previous);
+      queryClient.setQueryData(todosKey(scope), context?.previous);
       toast.error(getApiErrorMessage(error, "Görev silinemedi"));
     },
     onSettled: () => void invalidate(),

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { ClipboardList, Plus, SearchX } from "lucide-react";
+import { clsx } from "clsx";
+import { ClipboardList, Plus, SearchX, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatsCards } from "@/components/todos/StatsCards";
 import { TodoFilters, type PriorityFilter, type StatusFilter } from "@/components/todos/TodoFilters";
@@ -14,7 +15,8 @@ import type { TodoResponse } from "@/api/types";
 
 export function TodosPage() {
   const { user } = useAuth();
-  const { todos, isLoading, isError } = useTodos();
+  const [viewAll, setViewAll] = useState(false);
+  const { todos, isLoading, isError } = useTodos(user?.isAdmin && viewAll);
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -54,10 +56,26 @@ export function TodosPage() {
             İşte bugünkü görevlerine genel bakış.
           </p>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} size="lg">
-          <Plus className="h-4 w-4" />
-          Yeni Görev
-        </Button>
+        <div className="flex items-center gap-3">
+          {user?.isAdmin && (
+            <button
+              onClick={() => setViewAll((prev) => !prev)}
+              className={clsx(
+                "inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-medium ring-1 ring-inset transition-colors",
+                viewAll
+                  ? "bg-brand-600 text-white ring-brand-600 hover:bg-brand-700"
+                  : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700",
+              )}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              {viewAll ? "Tüm görevler" : "Sadece benim görevlerim"}
+            </button>
+          )}
+          <Button onClick={() => setIsCreateOpen(true)} size="lg">
+            <Plus className="h-4 w-4" />
+            Yeni Görev
+          </Button>
+        </div>
       </div>
 
       <div className="mb-8">
@@ -104,7 +122,12 @@ export function TodosPage() {
       ) : (
         <div className="space-y-3">
           {filteredTodos.map((todo) => (
-            <TodoItemCard key={todo.id} todo={todo} onEdit={setEditingTodo} />
+            <TodoItemCard
+              key={todo.id}
+              todo={todo}
+              onEdit={setEditingTodo}
+              showOwner={Boolean(user?.isAdmin && viewAll)}
+            />
           ))}
         </div>
       )}

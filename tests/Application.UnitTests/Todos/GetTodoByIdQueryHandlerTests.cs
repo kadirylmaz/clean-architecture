@@ -64,4 +64,72 @@ public sealed class GetTodoByIdQueryHandlerTests : BaseHandlerTest
         result.Value.Id.ShouldBe(todoItem.Id);
         result.Value.Description.ShouldBe("Cached todo");
     }
+
+    [Fact]
+    public async Task Handle_Should_ReturnNotFound_WhenTodoBelongsToAnotherUser_AndCallerIsNotAdmin()
+    {
+        // Arrange
+        await using TestDbContext context = CreateDbContext();
+        var todoItem = new TodoItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            Description = "Someone else's todo",
+            Priority = Priority.Normal,
+            Labels = [],
+            IsCompleted = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        context.TodoItems.Add(todoItem);
+        await context.SaveChangesAsync();
+
+        HybridCache cache = CreateCache();
+        IUserContext userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns(UserId);
+        userContext.IsAdmin.Returns(false);
+
+        var handler = new GetTodoByIdQueryHandler(context, userContext, cache);
+        var query = new GetTodoByIdQuery(todoItem.Id);
+
+        // Act
+        Result<TodoResponse> result = await handler.Handle(query, CancellationToken.None);
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("TodoItems.NotFound");
+    }
+
+    [Fact]
+    public async Task Handle_Should_ReturnTodo_WhenItBelongsToAnotherUser_AndCallerIsAdmin()
+    {
+        // Arrange
+        await using TestDbContext context = CreateDbContext();
+        var todoItem = new TodoItem
+        {
+            Id = Guid.NewGuid(),
+            UserId = Guid.NewGuid(),
+            Description = "Someone else's todo",
+            Priority = Priority.Normal,
+            Labels = [],
+            IsCompleted = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        context.TodoItems.Add(todoItem);
+        await context.SaveChangesAsync();
+
+        HybridCache cache = CreateCache();
+        IUserContext userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns(UserId);
+        userContext.IsAdmin.Returns(true);
+
+        var handler = new GetTodoByIdQueryHandler(context, userContext, cache);
+        var query = new GetTodoByIdQuery(todoItem.Id);
+
+        // Act
+        Result<TodoResponse> result = await handler.Handle(query, CancellationToken.None);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+        result.Value.Id.ShouldBe(todoItem.Id);
+    }
 }

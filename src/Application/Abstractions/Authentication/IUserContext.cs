@@ -3,4 +3,6 @@
 public interface IUserContext
 {
     Guid UserId { get; }
+
+    bool IsAdmin { get; }
 }

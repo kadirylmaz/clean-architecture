@@ -85,6 +85,81 @@ public sealed class CompleteTodoCommandHandlerTests : BaseHandlerTest
         todoItem.DomainEvents.ShouldContain(domainEvent => domainEvent is TodoItemCompletedDomainEvent);
     }
 
+    [Fact]
+    public async Task Handle_Should_PersistCompletionNotes_WhenProvided()
+    {
+        // Arrange
+        await using TestDbContext context = CreateDbContext();
+        Guid todoItemId = await SeedTodoAsync(context, isCompleted: false);
+
+        HybridCache cache = CreateCache();
+        IUserContext userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns(UserId);
+        IDateTimeProvider dateTimeProvider = Substitute.For<IDateTimeProvider>();
+
+        var handler = new CompleteTodoCommandHandler(context, dateTimeProvider, userContext, cache);
+        var command = new CompleteTodoCommand(todoItemId, "Followed up with the vendor before closing this out.");
+
+        // Act
+        Result result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+
+        TodoItem todoItem = await context.TodoItems.SingleAsync(t => t.Id == todoItemId);
+        todoItem.CompletionNotes.ShouldBe("Followed up with the vendor before closing this out.");
+    }
+
+    [Fact]
+    public async Task Handle_Should_ReturnNotFound_WhenTodoBelongsToAnotherUser_AndCallerIsNotAdmin()
+    {
+        // Arrange
+        await using TestDbContext context = CreateDbContext();
+        Guid todoItemId = await SeedTodoAsync(context, isCompleted: false);
+
+        HybridCache cache = CreateCache();
+        IUserContext userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns(Guid.NewGuid());
+        userContext.IsAdmin.Returns(false);
+        IDateTimeProvider dateTimeProvider = Substitute.For<IDateTimeProvider>();
+
+        var handler = new CompleteTodoCommandHandler(context, dateTimeProvider, userContext, cache);
+        var command = new CompleteTodoCommand(todoItemId);
+
+        // Act
+        Result result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Code.ShouldBe("TodoItems.NotFound");
+    }
+
+    [Fact]
+    public async Task Handle_Should_CompleteTodo_WhenTodoBelongsToAnotherUser_AndCallerIsAdmin()
+    {
+        // Arrange
+        await using TestDbContext context = CreateDbContext();
+        Guid todoItemId = await SeedTodoAsync(context, isCompleted: false);
+
+        HybridCache cache = CreateCache();
+        IUserContext userContext = Substitute.For<IUserContext>();
+        userContext.UserId.Returns(Guid.NewGuid());
+        userContext.IsAdmin.Returns(true);
+        IDateTimeProvider dateTimeProvider = Substitute.For<IDateTimeProvider>();
+
+        var handler = new CompleteTodoCommandHandler(context, dateTimeProvider, userContext, cache);
+        var command = new CompleteTodoCommand(todoItemId);
+
+        // Act
+        Result result = await handler.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.IsSuccess.ShouldBeTrue();
+
+        TodoItem todoItem = await context.TodoItems.SingleAsync(t => t.Id == todoItemId);
+        todoItem.IsCompleted.ShouldBeTrue();
+    }
+
     private static async Task<Guid> SeedTodoAsync(TestDbContext context, bool isCompleted)
     {
         var todoItem = new TodoItem

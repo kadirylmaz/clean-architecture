@@ -31,6 +31,7 @@ export interface TodoResponse {
   createdAt: string;
   completedAt: string | null;
   priority: PriorityValue;
+  completionNotes: string | null;
 }
 
 export interface UserResponse {
@@ -38,6 +39,7 @@ export interface UserResponse {
   email: string;
   firstName: string;
   lastName: string;
+  isAdmin: boolean;
 }
 
 export interface AccessTokensResponse {
@@ -55,6 +57,10 @@ export interface CreateTodoRequest {
 
 export interface UpdateTodoRequest {
   description: string;
+}
+
+export interface CompleteTodoRequest {
+  notes: string | null;
 }
 
 export interface LoginRequest {

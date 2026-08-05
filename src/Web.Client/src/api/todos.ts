@@ -1,8 +1,9 @@
 import { apiClient } from "./client";
-import type { CreateTodoRequest, TodoResponse, UpdateTodoRequest } from "./types";
+import type { CompleteTodoRequest, CreateTodoRequest, TodoResponse, UpdateTodoRequest } from "./types";
 
 export const todosApi = {
-  list: async (userId: string): Promise<TodoResponse[]> => {
+  /** Omit userId to fetch every user's todos (admin-only; enforced server-side). */
+  list: async (userId?: string): Promise<TodoResponse[]> => {
     const { data } = await apiClient.get<TodoResponse[]>("/todos", { params: { userId } });
     return data;
   },
@@ -21,8 +22,9 @@ export const todosApi = {
     await apiClient.put(`/todos/${id}`, payload);
   },
 
-  complete: async (id: string): Promise<void> => {
-    await apiClient.put(`/todos/${id}/complete`);
+  complete: async (id: string, notes: string | null = null): Promise<void> => {
+    const payload: CompleteTodoRequest = { notes };
+    await apiClient.put(`/todos/${id}/complete`, payload);
   },
 
   remove: async (id: string): Promise<void> => {
