@@ -15,7 +15,7 @@ builder.Services.AddSwaggerGenWithAuth();
 
 builder.Services
     .AddApplication()
-    .AddPresentation()
+    .AddPresentation(builder.Configuration)
     .AddInfrastructure(builder.Configuration);
 
 builder.Services.AddObservability(builder.Configuration, builder.Environment.ApplicationName);
@@ -45,6 +45,8 @@ app.UseRequestContextLogging();
 app.UseSerilogRequestLogging();
 
 app.UseExceptionHandler();
+
+app.UseCors(Web.Api.DependencyInjection.CorsPolicyName);
 
 app.UseAuthentication();
 

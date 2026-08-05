@@ -1,4 +1,6 @@
-﻿namespace Application.Todos.Get;
+﻿using Domain.Todos;
+
+namespace Application.Todos.Get;
 
 public sealed class TodoResponse
 {
@@ -10,4 +12,5 @@ public sealed class TodoResponse
     public bool IsCompleted { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public Priority Priority { get; set; }
 }
