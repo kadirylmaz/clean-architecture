@@ -24,7 +24,8 @@ internal sealed class GetUserByIdQueryHandler(IApplicationDbContext context, IUs
                 Id = u.Id,
                 FirstName = u.FirstName,
                 LastName = u.LastName,
-                Email = u.Email
+                Email = u.Email,
+                IsAdmin = u.RoleId == Role.Administrator.Id
             })
             .SingleOrDefaultAsync(cancellationToken);
 

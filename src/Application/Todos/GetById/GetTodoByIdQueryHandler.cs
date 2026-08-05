@@ -17,11 +17,12 @@ internal sealed class GetTodoByIdQueryHandler(
     public async Task<Result<TodoResponse>> Handle(GetTodoByIdQuery query, CancellationToken cancellationToken)
     {
         Guid userId = userContext.UserId;
+        bool isAdmin = userContext.IsAdmin;
 
         TodoResponse? todo = await cache.GetOrCreateAsync(
             TodoCacheKeys.ById(userId, query.TodoItemId),
             async cancellation => await context.TodoItems
-                .Where(todoItem => todoItem.Id == query.TodoItemId && todoItem.UserId == userId)
+                .Where(todoItem => todoItem.Id == query.TodoItemId && (isAdmin || todoItem.UserId == userId))
                 .Select(todoItem => new TodoResponse
                 {
                     Id = todoItem.Id,
@@ -32,7 +33,8 @@ internal sealed class GetTodoByIdQueryHandler(
                     IsCompleted = todoItem.IsCompleted,
                     CreatedAt = todoItem.CreatedAt,
                     CompletedAt = todoItem.CompletedAt,
-                    Priority = todoItem.Priority
+                    Priority = todoItem.Priority,
+                    CompletionNotes = todoItem.CompletionNotes
                 })
                 .SingleOrDefaultAsync(cancellation),
             cancellationToken: cancellationToken);

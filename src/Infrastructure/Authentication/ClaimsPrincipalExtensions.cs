@@ -1,4 +1,5 @@
 ﻿using System.Security.Claims;
+using Domain.Users;
 
 namespace Infrastructure.Authentication;
 
@@ -12,4 +13,7 @@ internal static class ClaimsPrincipalExtensions
             parsedUserId :
             throw new ApplicationException("User id is unavailable");
     }
+
+    public static bool IsAdmin(this ClaimsPrincipal? principal) =>
+        principal?.IsInRole(Role.Administrator.Name) ?? false;
 }

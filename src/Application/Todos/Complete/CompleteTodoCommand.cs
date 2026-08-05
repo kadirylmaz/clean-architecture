@@ -2,4 +2,4 @@
 
 namespace Application.Todos.Complete;
 
-public sealed record CompleteTodoCommand(Guid TodoItemId) : ICommand;
+public sealed record CompleteTodoCommand(Guid TodoItemId, string? Notes = null) : ICommand;
