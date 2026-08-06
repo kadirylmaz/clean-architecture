@@ -14,4 +14,5 @@ public sealed class TodoResponse
     public DateTime? CompletedAt { get; set; }
     public Priority Priority { get; set; }
     public string? CompletionNotes { get; set; }
+    public string OwnerName { get; set; }
 }

@@ -32,6 +32,7 @@ export interface TodoResponse {
   completedAt: string | null;
   priority: PriorityValue;
   completionNotes: string | null;
+  ownerName: string;
 }
 
 export interface UserResponse {

@@ -2,6 +2,7 @@ using Application.Abstractions.Authentication;
 using Application.Todos.GetById;
 using Application.UnitTests.Abstractions;
 using Domain.Todos;
+using Domain.Users;
 using Microsoft.Extensions.Caching.Hybrid;
 using SharedKernel;
 
@@ -36,6 +37,7 @@ public sealed class GetTodoByIdQueryHandlerTests : BaseHandlerTest
     {
         // Arrange
         await using TestDbContext context = CreateDbContext();
+        await SeedOwnerAsync(context, UserId);
         var todoItem = new TodoItem
         {
             Id = Guid.NewGuid(),
@@ -104,10 +106,12 @@ public sealed class GetTodoByIdQueryHandlerTests : BaseHandlerTest
     {
         // Arrange
         await using TestDbContext context = CreateDbContext();
+        var ownerId = Guid.NewGuid();
+        await SeedOwnerAsync(context, ownerId);
         var todoItem = new TodoItem
         {
             Id = Guid.NewGuid(),
-            UserId = Guid.NewGuid(),
+            UserId = ownerId,
             Description = "Someone else's todo",
             Priority = Priority.Normal,
             Labels = [],
@@ -131,5 +135,19 @@ public sealed class GetTodoByIdQueryHandlerTests : BaseHandlerTest
         // Assert
         result.IsSuccess.ShouldBeTrue();
         result.Value.Id.ShouldBe(todoItem.Id);
+    }
+
+    private static async Task SeedOwnerAsync(TestDbContext context, Guid ownerId)
+    {
+        context.Users.Add(new User
+        {
+            Id = ownerId,
+            Email = $"{ownerId}@example.com",
+            FirstName = "Test",
+            LastName = "User",
+            PasswordHash = "hash"
+        });
+
+        await context.SaveChangesAsync();
     }
 }

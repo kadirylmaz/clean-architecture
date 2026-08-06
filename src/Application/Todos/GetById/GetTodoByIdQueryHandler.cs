@@ -23,19 +23,24 @@ internal sealed class GetTodoByIdQueryHandler(
             TodoCacheKeys.ById(userId, query.TodoItemId),
             async cancellation => await context.TodoItems
                 .Where(todoItem => todoItem.Id == query.TodoItemId && (isAdmin || todoItem.UserId == userId))
-                .Select(todoItem => new TodoResponse
-                {
-                    Id = todoItem.Id,
-                    UserId = todoItem.UserId,
-                    Description = todoItem.Description,
-                    DueDate = todoItem.DueDate,
-                    Labels = todoItem.Labels,
-                    IsCompleted = todoItem.IsCompleted,
-                    CreatedAt = todoItem.CreatedAt,
-                    CompletedAt = todoItem.CompletedAt,
-                    Priority = todoItem.Priority,
-                    CompletionNotes = todoItem.CompletionNotes
-                })
+                .Join(
+                    context.Users,
+                    todoItem => todoItem.UserId,
+                    user => user.Id,
+                    (todoItem, user) => new TodoResponse
+                    {
+                        Id = todoItem.Id,
+                        UserId = todoItem.UserId,
+                        Description = todoItem.Description,
+                        DueDate = todoItem.DueDate,
+                        Labels = todoItem.Labels,
+                        IsCompleted = todoItem.IsCompleted,
+                        CreatedAt = todoItem.CreatedAt,
+                        CompletedAt = todoItem.CompletedAt,
+                        Priority = todoItem.Priority,
+                        CompletionNotes = todoItem.CompletionNotes,
+                        OwnerName = user.FirstName + " " + user.LastName
+                    })
                 .SingleOrDefaultAsync(cancellation),
             cancellationToken: cancellationToken);
 

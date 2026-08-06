@@ -2,6 +2,8 @@ using Application.Abstractions.Authentication;
 using Application.Todos.Get;
 using Application.UnitTests.Abstractions;
 using Domain.Todos;
+using Domain.Users;
+using Microsoft.EntityFrameworkCore;
 using SharedKernel;
 
 namespace Application.UnitTests.Todos;
@@ -105,6 +107,18 @@ public sealed class GetTodosQueryHandlerTests : BaseHandlerTest
 
     private static async Task SeedTodoAsync(TestDbContext context, Guid userId, string description)
     {
+        if (!await context.Users.AnyAsync(u => u.Id == userId))
+        {
+            context.Users.Add(new User
+            {
+                Id = userId,
+                Email = $"{userId}@example.com",
+                FirstName = "Test",
+                LastName = "User",
+                PasswordHash = "hash"
+            });
+        }
+
         var todoItem = new TodoItem
         {
             Id = Guid.NewGuid(),

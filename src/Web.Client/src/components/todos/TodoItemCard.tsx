@@ -91,7 +91,7 @@ export function TodoItemCard({ todo, onEdit, showOwner = false }: TodoItemCardPr
             {showOwner && (
               <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700">
                 <UserIcon className="h-3 w-3" />
-                Kullanıcı: {todo.userId.slice(0, 8)}
+                {todo.ownerName}
               </span>
             )}
           </div>

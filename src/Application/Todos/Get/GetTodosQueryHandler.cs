@@ -32,19 +32,24 @@ internal sealed class GetTodosQueryHandler(IApplicationDbContext context, IUserC
         }
 
         List<TodoResponse> todos = await todoItemsQuery
-            .Select(todoItem => new TodoResponse
-            {
-                Id = todoItem.Id,
-                UserId = todoItem.UserId,
-                Description = todoItem.Description,
-                DueDate = todoItem.DueDate,
-                Labels = todoItem.Labels,
-                IsCompleted = todoItem.IsCompleted,
-                CreatedAt = todoItem.CreatedAt,
-                CompletedAt = todoItem.CompletedAt,
-                Priority = todoItem.Priority,
-                CompletionNotes = todoItem.CompletionNotes
-            })
+            .Join(
+                context.Users,
+                todoItem => todoItem.UserId,
+                user => user.Id,
+                (todoItem, user) => new TodoResponse
+                {
+                    Id = todoItem.Id,
+                    UserId = todoItem.UserId,
+                    Description = todoItem.Description,
+                    DueDate = todoItem.DueDate,
+                    Labels = todoItem.Labels,
+                    IsCompleted = todoItem.IsCompleted,
+                    CreatedAt = todoItem.CreatedAt,
+                    CompletedAt = todoItem.CompletedAt,
+                    Priority = todoItem.Priority,
+                    CompletionNotes = todoItem.CompletionNotes,
+                    OwnerName = user.FirstName + " " + user.LastName
+                })
             .ToListAsync(cancellationToken);
 
         return todos;
