@@ -5,9 +5,19 @@ services:
     build:
       context: .
       dockerfile: src/Web.Api/Dockerfile
+    environment:
+      # Traces + metrics (OpenTelemetry SDK, see OpenTelemetryExtensions.cs) and logs (Serilog's
+      # OpenTelemetry sink, see Program.cs) all export to the collector over this one endpoint.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
     ports:
       - 5000:8080
       - 5001:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   postgres:
     image: postgres:17
@@ -20,6 +30,11 @@ services:
       - ./.containers/db:/var/lib/postgresql/data
     ports:
       - 5432:5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   seq:
     image: datalust/seq:2024.3
@@ -28,3 +43,80 @@ services:
       - ACCEPT_EULA=Y
     ports:
       - 8081:80
+
+  # ---------------------------------------------------------------------------------------------
+  # Observability stack (OpenTelemetry -> Grafana "LGTM"): web-api sends OTLP traces/metrics/logs
+  # to otel-collector, which fans them out to Tempo/Prometheus/Loki. Grafana ties all three
+  # together (exemplars, trace<->log correlation, service graph). See observability/README.md.
+  # ---------------------------------------------------------------------------------------------
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - 4317:4317 # OTLP gRPC (also used internally by web-api)
+      - 4318:4318 # OTLP HTTP
+      - 8889:8889 # Prometheus scrape endpoint (collector's own exporter)
+    depends_on:
+      - tempo
+      - loki
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    user: "0" # named volume is root-owned by default; simplest fix for a local/dev stack
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - 3200:3200 # Tempo API (also scraped by Prometheus for Tempo's own metrics)
+
+  loki:
+    image: grafana/loki:3.3.2
+    container_name: loki
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    volumes:
+      - ./observability/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - 3100:3100
+
+  prometheus:
+    image: prom/prometheus:v3.0.1
+    container_name: prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver # so Tempo's metrics-generator can remote_write span metrics
+      - --enable-feature=exemplar-storage  # lets latency graphs link straight to a Tempo trace
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - 9091:9090
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: grafana
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_FEATURE_TOGGLES_ENABLE=exemplars
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - 3001:3000
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+volumes:
+  tempo-data:
+  loki-data:
+  prometheus-data:
+  grafana-data:

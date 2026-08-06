@@ -1,0 +1,20 @@
+# Scrapes app + collector metrics, and receives Tempo's span-metrics via remote_write
+# (enabled with --web.enable-remote-write-receiver on the prometheus container command).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Web.Api's traces/metrics/logs -> otel-collector -> this Prometheus exporter endpoint.
+  - job_name: otel-collector
+    static_configs:
+      - targets: ["otel-collector:8889"]
+
+  # Tempo's own health/internal metrics.
+  - job_name: tempo
+    static_configs:
+      - targets: ["tempo:3200"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

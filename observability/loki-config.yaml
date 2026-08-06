@@ -1,0 +1,52 @@
+# Single-binary Loki, filesystem storage — sufficient for local dev/demo. Accepts logs over
+# OTLP natively at /otlp/v1/logs (Loki 3.x+), which is what the otel-collector writes to.
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+limits_config:
+  # Resource attributes coming in over OTLP (service.name, deployment.environment) are promoted to
+  # indexed labels, so Grafana's Loki datasource can filter by service the same way it does for
+  # Prometheus/Tempo.
+  otlp_config:
+    resource_attributes:
+      attributes_config:
+        - action: index_label
+          attributes:
+            - service.name
+            - deployment.environment
+  allow_structured_metadata: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  retention_enabled: true
+
+table_manager:
+  retention_deletes_enabled: true
+  retention_period: 168h

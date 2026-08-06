@@ -1,0 +1,66 @@
+# OpenTelemetry Collector — single ingestion point for the Web.Api's traces, metrics, and logs.
+#
+# Web.Api sends everything here over OTLP (grpc :4317 / http :4318). The collector then fans out
+# each signal to the right backend:
+#   traces  -> Tempo        (distributed tracing / trace waterfalls)
+#   metrics -> Prometheus   (scraped from the `prometheus` exporter below)
+#   logs    -> Loki         (native OTLP log ingestion)
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+  # Adds collector/host resource attributes (not strictly required, but useful when more than one
+  # service eventually sends data through this same collector).
+  resourcedetection:
+    detectors: [env, system]
+    system:
+      hostname_sources: [os]
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  otlphttp/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
+
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    enable_open_metrics: true
+    # Keeps resource attributes (service.name, deployment.environment, ...) as Prometheus labels
+    # instead of dropping them, so dashboards can filter/group by service.
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlp/tempo, debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [prometheus, debug]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resourcedetection, batch]
+      exporters: [otlphttp/loki, debug]

@@ -1,0 +1,191 @@
+{
+  "id": null,
+  "uid": "web-api-observability",
+  "title": "Web.Api — Observability",
+  "description": "HTTP request latency/error-rate, per-use-case (Application layer) duration and failures, downstream DB/HTTP dependency latency (from Tempo span-metrics), and error logs correlated to traces.",
+  "tags": ["clean-architecture", "opentelemetry"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    { "id": 100, "type": "row", "title": "HTTP — Incoming Requests", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 } },
+
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Request rate by route",
+      "description": "sum(rate(http_server_request_duration_seconds_count[$__rate_interval])) by (http_route)",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (http_route) (rate(http_server_request_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{http_route}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Request duration — p50 / p95 / p99",
+      "description": "histogram_quantile(...) over http_server_request_duration_seconds_bucket, overall (all routes).",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 5 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p95"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_request_duration_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "5xx error rate",
+      "description": "Server-error responses as a percentage of all requests, last 5m.",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 0.01 },
+            { "color": "red", "value": 0.05 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_request_duration_seconds_count[5m])), 1)"
+        }
+      ]
+    },
+
+    { "id": 101, "type": "row", "title": "Application Layer — Use Cases (commands / queries)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 } },
+
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Use-case duration — p95 by use case",
+      "description": "From ApplicationTelemetry (app.use_case.duration), recorded by LoggingDecorator around every command/query handler.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ms", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, use_case) (rate(app_use_case_duration_milliseconds_bucket[$__rate_interval])))",
+          "legendFormat": "{{use_case}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Use-case failures / sec by use case",
+      "description": "From ApplicationTelemetry (app.use_case.failures) — every Result.Failure returned by a handler, tagged with the domain error code.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "fillOpacity": 30, "stacking": { "mode": "normal" } } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (use_case, error_code) (rate(app_use_case_failures_total[$__rate_interval]))",
+          "legendFormat": "{{use_case}} — {{error_code}}"
+        }
+      ]
+    },
+
+    { "id": 102, "type": "row", "title": "Downstream Dependencies — Database & External Calls (from trace span-metrics)", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 18 } },
+
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Dependency call duration — p95 by span name",
+      "description": "Tempo's metrics-generator turns every span (Npgsql DB calls, outgoing HttpClient calls, ...) into RED metrics, remote-written to Prometheus — no extra instrumentation needed.",
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (le, span_name) (rate(traces_spanmetrics_latency_bucket[$__rate_interval])))",
+          "legendFormat": "{{span_name}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Dependency calls / sec by span name",
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 19 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (span_name) (rate(traces_spanmetrics_calls_total[$__rate_interval]))",
+          "legendFormat": "{{span_name}}"
+        }
+      ]
+    },
+
+    { "id": 103, "type": "row", "title": "Logs & Runtime", "gridPos": { "h": 1, "w": 24, "x": 0, "y": 28 } },
+
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "Error logs (click a line → View Trace)",
+      "description": "Serilog -> OTLP -> Loki. The Loki datasource's derived field extracts trace_id from each log line and links straight to the Tempo trace.",
+      "gridPos": { "h": 10, "w": 16, "x": 0, "y": 29 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": { "showTime": true, "showLabels": true, "wrapLogMessages": true, "sortOrder": "Descending" },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{service_name=\"Web.Api\"} | severity_text =~ \"Error|Fatal\""
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": ".NET runtime — process memory & GC heap",
+      "description": "From OpenTelemetry.Instrumentation.Runtime.",
+      "gridPos": { "h": 10, "w": 8, "x": 16, "y": 29 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "custom": { "drawStyle": "line", "fillOpacity": 10 } }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "dotnet_process_memory_working_set_bytes",
+          "legendFormat": "working set"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "dotnet_gc_last_collection_heap_size_bytes",
+          "legendFormat": "GC heap ({{gc_heap_generation}})"
+        }
+      ]
+    }
+  ]
+}
